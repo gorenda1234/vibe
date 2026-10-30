@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>포켓몬 강화하기 Arcade</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Jua&family=Press+Start+2P&display=swap');
+
+        body {
+            background-color: #1a2e22;
+            font-family: 'Jua', sans-serif;
+            user-select: none;
+            overflow-x: hidden;
+        }
+
+        .chalk-glow {
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.8), 0 0 20px rgba(255, 215, 0, 0.5);
+        }
+
+        .chalk-board {
+            background: radial-gradient(circle, #224233 0%, #152b20 100%);
+            border: 12px solid #6e4726;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.8), 0 10px 25px rgba(0,0,0,0.6);
+            border-radius: 16px;
+        }
+
+        /* Upgrade Aura Visual Effects */
+        .aura-common { filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.4)); }
+        .aura-rare { filter: drop-shadow(0 0 15px rgba(52, 152, 219, 0.8)); }
+        .aura-epic { filter: drop-shadow(0 0 20px rgba(155, 89, 182, 0.9)); }
+        .aura-legendary { filter: drop-shadow(0 0 25px rgba(241, 196, 15, 1)); animation: pulseAura 1.5s infinite alternate; }
+        .aura-mythic { filter: drop-shadow(0 0 35px rgba(231, 76, 60, 1)); animation: rainbowAura 2s infinite linear; }
+        .aura-god { filter: drop-shadow(0 0 45px rgba(0, 255, 204, 1)); animation: rainbowAura 1s infinite linear; }
+
+        @keyframes pulseAura {
+            0% { filter: drop-shadow(0 0 15px rgba(241, 196, 15, 0.6)); transform: scale(1); }
+            100% { filter: drop-shadow(0 0 30px rgba(241, 196, 15, 1)); transform: scale(1.05); }
+        }
+
+        @keyframes rainbowAura {
+            0% { filter: drop-shadow(0 0 25px #ff0000) hue-rotate(0deg); }
+            100% { filter: drop-shadow(0 0 25px #ff0000) hue-rotate(360deg); }
+        }
+
+        /* Success / Fail Shakes */
+        .animate-success {
+            animation: successJump 0.6s ease-out;
+        }
+
+        .animate-fail {
+            animation: failShake 0.5s ease-in-out;
+        }
+
+        @keyframes successJump {
+            0% { transform: translateY(0) scale(1); }
+            40% { transform: translateY(-40px) scale(1.2) rotate(10deg); }
+            70% { transform: translateY(10px) scale(0.9) rotate(-5deg); }
+            100% { transform: translateY(0) scale(1) rotate(0); }
+        }
+
+        @keyframes failShake {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-15px) rotate(-5deg); }
+            40% { transform: translateX(15px) rotate(5deg); }
+            60% { transform: translateX(-10px) rotate(-3deg); }
+            80% { transform: translateX(10px) rotate(3deg); }
+        }
+
+        /* Particle effect canvas */
+        canvas#fxCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 20;
+        }
+    </style>
+</head>
+<body class="min-h-screen text-white flex flex-col items-center justify-between p-3 md:p-6 select-none">
+
+    <!-- Top Header Navigation -->
+    <header class="w-full max-w-4xl bg-emerald-950/90 border-2 border-amber-600/60 rounded-xl p-3 flex justify-between items-center shadow-lg mb-3">
+        <div class="flex items-center space-x-3">
+            <span class="text-2xl">⚡</span>
+            <div>
+                <h1 class="text-xl md:text-2xl font-black text-amber-300 chalk-glow">포켓몬 강화하기</h1>
+                <p class="text-[11px] text-emerald-300">최강의 전설 포켓몬을 탄생시켜보세요!</p>
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-4">
+            <!-- Gold Display -->
+            <div class="bg-black/50 border border-amber-400/50 px-3 py-1.5 rounded-lg flex items-center space-x-2">
+                <i class="fa-solid fa-coins text-amber-400 text-base"></i>
+                <span id="goldText" class="text-amber-200 font-mono text-base md:text-lg font-bold">1,000</span>
+                <span class="text-xs text-amber-400 font-normal">G</span>
+            </div>
+
+            <!-- Sound & Pokedex Buttons -->
+            <button id="pokedexBtn" class="bg-amber-600 hover:bg-amber-500 text-amber-950 font-bold px-3 py-1.5 rounded-lg text-xs md:text-sm flex items-center gap-1.5 transition">
+                <i class="fa-solid fa-book-bookmark"></i> 도감
+            </button>
+            <button id="soundToggle" class="p-2 rounded-lg bg-emerald-900 hover:bg-emerald-800 text-amber-300 transition">
+                <i id="soundIcon" class="fa-solid fa-volume-high text-sm"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Game Board Container -->
+    <main class="relative w-full max-w-4xl flex-1 chalk-board p-4 md:p-8 flex flex-col items-center justify-between overflow-hidden my-auto">
+        <canvas id="fxCanvas"></canvas>
+
+        <!-- Current Pokemon Info Box -->
+        <div class="w-full flex justify-between items-start z-10">
+            <div class="bg-black/40 border border-emerald-500/30 p-2.5 rounded-xl">
+                <span id="stageBadge" class="bg-amber-500 text-amber-950 font-black text-xs px-2.5 py-0.5 rounded-full inline-block mb-1">LV. 1</span>
+                <h2 id="pokemonName" class="text-xl md:text-2xl font-bold text-amber-100">피츄</h2>
+                <div id="rarityBadge" class="text-xs font-bold text-gray-300 mt-0.5">일반 등급</div>
+            </div>
+
+            <div class="text-right bg-black/40 border border-emerald-500/30 p-2.5 rounded-xl">
+                <div class="text-xs text-emerald-300">최대 달성 단계</div>
+                <div id="maxStageText" class="text-lg font-extrabold text-amber-300">LV. 1</div>
+            </div>
+        </div>
+
+        <!-- Pokemon Display Visual Center -->
+        <div class="relative my-4 md:my-6 flex flex-col items-center justify-center z-10">
+            <!-- Aura Backlight -->
+            <div id="auraBg" class="absolute w-48 h-48 md:w-64 md:h-64 rounded-full bg-amber-400/10 blur-xl"></div>
+            
+            <!-- Pokemon Image / Icon Display -->
+            <div id="pokemonDisplay" class="relative z-10 w-44 h-44 md:w-56 md:h-56 flex items-center justify-center transition-all duration-300 aura-common">
+                <img id="pokemonImg" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/172.png" alt="Pokemon" class="max-w-full max-h-full object-contain filter drop-shadow-xl" />
+            </div>
+
+            <div id="statusMessage" class="mt-4 text-sm md:text-base font-bold text-emerald-200 h-6 text-center">
+                강화 버튼을 눌러 다음 단계로 진화시키세요!
+            </div>
+        </div>
+
+        <!-- Upgrade Stats & Rate Cards -->
+        <div class="w-full grid grid-cols-2 gap-2 md:gap-4 mb-4 z-10 text-center max-w-lg mx-auto">
+            <div class="bg-black/40 border border-emerald-600/40 p-3 rounded-xl">
+                <span class="text-xs md:text-sm text-emerald-300 block font-bold mb-1">성공 확률</span>
+                <span id="successRateText" class="text-base md:text-xl font-black text-emerald-400">100%</span>
+            </div>
+            <div class="bg-black/40 border border-emerald-600/40 p-3 rounded-xl">
+                <span class="text-xs md:text-sm text-emerald-300 block font-bold mb-1">파괴 확률</span>
+                <span id="destroyRateText" class="text-base md:text-xl font-black text-red-500">0%</span>
+            </div>
+        </div>
+
+        <!-- Upgrade Protection / Buff Shop Section -->
+        <div class="w-full bg-black/50 border border-amber-500/40 rounded-xl p-2.5 mb-4 z-10 flex flex-col md:flex-row justify-between items-center gap-2">
+            <div class="text-xs text-amber-300 font-bold flex items-center gap-1.5">
+                <i class="fa-solid fa-shield-halved text-amber-400 text-sm"></i>
+                <span>골드로 확률 보정 (1회용 아이템)</span>
+            </div>
+            <div class="flex items-center gap-2 w-full md:w-auto">
+                <!-- Protect Scroll Option -->
+                <button id="protectScrollBtn" class="flex-1 md:flex-none bg-emerald-900/80 hover:bg-emerald-800 border border-emerald-400/50 text-xs px-3 py-1.5 rounded-lg transition flex items-center justify-center gap-1">
+                    <i class="fa-solid fa-shield text-amber-400"></i>
+                    <span>파괴 방지 (<span id="protectCostText">300G</span>)</span>
+                </button>
+                <!-- Luck Amulet Option -->
+                <button id="luckAmuletBtn" class="flex-1 md:flex-none bg-emerald-900/80 hover:bg-emerald-800 border border-amber-400/50 text-xs px-3 py-1.5 rounded-lg transition flex items-center justify-center gap-1">
+                    <i class="fa-solid fa-clover text-emerald-400"></i>
+                    <span>성공률+10% (<span id="luckCostText">100G</span>)</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Action Control Buttons -->
+        <div class="w-full grid grid-cols-3 gap-2 md:gap-3 z-10 max-w-lg mx-auto">
+            <!-- Upgrade Button -->
+            <button id="upgradeBtn" class="bg-amber-500 hover:bg-amber-400 text-amber-950 font-black py-3 px-2 rounded-xl shadow-xl border-2 border-amber-300 transition active:scale-95 flex flex-col items-center justify-center">
+                <div class="flex items-center gap-1 text-xs md:text-sm">
+                    <i class="fa-solid fa-bolt"></i>
+                    <span>강화하기</span>
+                </div>
+                <span class="text-[11px] font-normal opacity-90"><span id="upgradeCostText">50</span>G</span>
+            </button>
+
+            <!-- Work (Part-time job) Button -->
+            <button id="workBtn" class="bg-emerald-700 hover:bg-emerald-600 text-emerald-100 font-bold py-3 px-2 rounded-xl shadow-lg border border-emerald-400/40 transition active:scale-95 flex flex-col items-center justify-center">
+                <div class="flex items-center gap-1 text-xs md:text-sm">
+                    <i class="fa-solid fa-hammer text-amber-300"></i>
+                    <span>알바하기</span>
+                </div>
+                <span class="text-[11px] font-normal text-amber-300">+<span id="workEarnText">100</span>G</span>
+            </button>
+
+            <!-- Sell Pokemon Button -->
+            <button id="sellBtn" class="bg-rose-800 hover:bg-rose-700 text-white font-bold py-3 px-2 rounded-xl shadow-lg border border-rose-400/40 transition active:scale-95 flex flex-col items-center justify-center">
+                <div class="flex items-center gap-1 text-xs md:text-sm">
+                    <i class="fa-solid fa-sack-dollar text-amber-300"></i>
+                    <span>판매하기</span>
+                </div>
+                <span class="text-[11px] font-normal text-amber-300"><span id="sellPriceText">100</span>G</span>
+            </button>
+        </div>
+    </main>
+
+    <!-- Bottom Speed & Helper Info -->
+    <footer class="w-full max-w-4xl mt-3 text-center text-xs text-emerald-400/80">
+        💡 성공 확률 95% 이상으로 대폭 상승! 편안하고 신나게 20단계 창조신까지 진화시켜보세요!
+    </footer>
+
+    <!-- Pokedex Modal -->
+    <div id="pokedexModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex justify-center items-center hidden p-4">
+        <div class="bg-emerald-950 border-4 border-amber-600 rounded-2xl w-full max-w-3xl max-h-[88vh] p-5 flex flex-col justify-between shadow-2xl">
+            <div class="flex justify-between items-center border-b border-emerald-800 pb-3 mb-3">
+                <h3 class="text-xl font-bold text-amber-300 flex items-center gap-2">
+                    <i class="fa-solid fa-book-open"></i> 포켓몬 20단계 도감
+                </h3>
+                <button id="closePokedexBtn" class="text-gray-400 hover:text-white text-xl">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Grid List of Pokemon -->
+            <div id="pokedexGrid" class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-2.5 overflow-y-auto p-1 max-h-[62vh]">
+                <!-- Dynamic insertion -->
+            </div>
+
+            <div class="mt-4 pt-2 border-t border-emerald-800 text-right text-xs text-emerald-300">
+                수집 현황: <span id="pokedexCountText" class="text-amber-300 font-bold">1 / 20</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // DOM Elements
+        const goldText = document.getElementById('goldText');
+        const stageBadge = document.getElementById('stageBadge');
+        const pokemonName = document.getElementById('pokemonName');
+        const rarityBadge = document.getElementById('rarityBadge');
+        const maxStageText = document.getElementById('maxStageText');
+        const pokemonDisplay = document.getElementById('pokemonDisplay');
+        const pokemonImg = document.getElementById('pokemonImg');
+        const statusMessage = document.getElementById('statusMessage');
+        const successRateText = document.getElementById('successRateText');
+        const destroyRateText = document.getElementById('destroyRateText');
+        const protectScrollBtn = document.getElementById('protectScrollBtn');
+        const luckAmuletBtn = document.getElementById('luckAmuletBtn');
+        const protectCostText = document.getElementById('protectCostText');
+        const luckCostText = document.getElementById('luckCostText');
+        const upgradeBtn = document.getElementById('upgradeBtn');
+        const upgradeCostText = document.getElementById('upgradeCostText');
+        const workBtn = document.getElementById('workBtn');
+        const workEarnText = document.getElementById('workEarnText');
+        const sellBtn = document.getElementById('sellBtn');
+        const sellPriceText = document.getElementById('sellPriceText');
+        const pokedexBtn = document.getElementById('pokedexBtn');
+        const pokedexModal = document.getElementById('pokedexModal');
+        const closePokedexBtn = document.getElementById('closePokedexBtn');
+        const pokedexGrid = document.getElementById('pokedexGrid');
+        const pokedexCountText = document.getElementById('pokedexCountText');
+        const soundToggle = document.getElementById('soundToggle');
+        const soundIcon = document.getElementById('soundIcon');
+        const fxCanvas = document.getElementById('fxCanvas');
+        const ctx = fxCanvas.getContext('2d');
+
+        // Particle Canvas Setup
+        function resizeCanvas() {
+            fxCanvas.width = fxCanvas.parentElement.clientWidth;
+            fxCanvas.height = fxCanvas.parentElement.clientHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        setTimeout(resizeCanvas, 100);
+
+        let particles = [];
+        function createSparkles(x, y, count = 30, isSuccess = true) {
+            for (let i = 0; i < count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 6 + 2;
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed - 1,
+                    size: Math.random() * 5 + 3,
+                    color: isSuccess ? `hsl(${Math.random() * 60 + 40}, 100%, 60%)` : `hsl(${Math.random() * 20}, 100%, 50%)`,
+                    alpha: 1,
+                    life: Math.random() * 30 + 20
+                });
+            }
+        }
+
+        function animateParticles() {
+            ctx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
+            particles.forEach((p, index) => {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.15; // gravity
+                p.alpha -= 1 / p.life;
+                p.size *= 0.96;
+
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, p.alpha);
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, Math.max(0, p.size), 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+
+                if (p.alpha <= 0) {
+                    particles.splice(index, 1);
+                }
+            });
+            requestAnimationFrame(animateParticles);
+        }
+        animateParticles();
+
+        // Web Audio Synthesizer Sound Engine
+        const sound = {
+            ctx: null,
+            enabled: true,
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            },
+            playSuccess() {
+                if (!this.enabled || !this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(300, now);
+                osc.frequency.exponentialRampToValueAtTime(800, now + 0.3);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.3);
+            },
+            playMaintain() {
+                if (!this.enabled || !this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(400, now);
+                osc.frequency.setValueAtTime(400, now + 0.1);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.25);
+            },
+            playDestroy() {
+                if (!this.enabled || !this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(250, now);
+                osc.frequency.exponentialRampToValueAtTime(60, now + 0.4);
+                gain.gain.setValueAtTime(0.4, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.4);
+            },
+            playSell() {
+                if (!this.enabled || !this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(523.25, now);
+                osc.frequency.setValueAtTime(659.25, now + 0.08);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.2);
+            },
+            playWork() {
+                if (!this.enabled || !this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(600, now);
+                gain.gain.setValueAtTime(0.15, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.1);
+            }
+        };
+
+        // Core Game State Variables
+        let currentStage = 1;
+        let gold = 1000;
+        let maxStage = 1;
+        let pokedexUnlocked = [1];
+
+        // Persistence Handling
+        function saveData() {
+            try {
+                localStorage.setItem('poke_currentStage', currentStage);
+                localStorage.setItem('poke_gold', gold);
+                localStorage.setItem('poke_maxStage', maxStage);
+                localStorage.setItem('poke_pokedexUnlocked', JSON.stringify(pokedexUnlocked));
+            } catch(e) {}
+        }
+
+        function loadData() {
+            try {
+                const sStage = localStorage.getItem('poke_currentStage');
+                const sGold = localStorage.getItem('poke_gold');
+                const sMax = localStorage.getItem('poke_maxStage');
+                const sDex = localStorage.getItem('poke_pokedexUnlocked');
+
+                if (sStage) currentStage = Math.min(20, parseInt(sStage, 10));
+                if (sGold) gold = parseInt(sGold, 10);
+                if (sMax) maxStage = Math.min(20, parseInt(sMax, 10));
+                if (sDex) pokedexUnlocked = JSON.parse(sDex).filter(lvl => lvl <= 20);
+            } catch(e) {}
+        }
+
+        // --- Pokemon Evolution Data List (20 Stages, Lowered Destroy Rates) ---
+        const POKEMON_DATA = [
+            { level: 1, name: '피츄', sprite: '172', rarity: '일반', auraClass: 'aura-common', success: 99, destroy: 1, cost: 50, price: 100 },
+            { level: 2, name: '피카츄', sprite: '25', rarity: '일반', auraClass: 'aura-common', success: 98, destroy: 2, cost: 100, price: 300 },
+            { level: 3, name: '이브이', sprite: '133', rarity: '일반', auraClass: 'aura-common', success: 96, destroy: 4, cost: 200, price: 800 },
+            { level: 4, name: '파이리', sprite: '4', rarity: '희귀', auraClass: 'aura-rare', success: 93, destroy: 7, cost: 400, price: 2000 },
+            { level: 5, name: '꼬부기', sprite: '7', rarity: '희귀', auraClass: 'aura-rare', success: 90, destroy: 10, cost: 800, price: 5000 },
+            
+            { level: 6, name: '리자몽', sprite: '6', rarity: '희귀', auraClass: 'aura-rare', success: 86, destroy: 14, cost: 1500, price: 12000 },
+            { level: 7, name: '팬텀', sprite: '94', rarity: '에픽', auraClass: 'aura-epic', success: 82, destroy: 18, cost: 3000, price: 30000 },
+            { level: 8, name: '잠만보', sprite: '143', rarity: '에픽', auraClass: 'aura-epic', success: 78, destroy: 22, cost: 6000, price: 70000 },
+            { level: 9, name: '망나뇽', sprite: '149', rarity: '에픽', auraClass: 'aura-epic', success: 74, destroy: 26, cost: 12000, price: 150000 },
+            { level: 10, name: '한카리아스', sprite: '445', rarity: '전설', auraClass: 'aura-legendary', success: 70, destroy: 30, cost: 25000, price: 350000 },
+
+            { level: 11, name: '썬더', sprite: '145', rarity: '전설', auraClass: 'aura-legendary', success: 65, destroy: 35, cost: 50000, price: 800000 },
+            { level: 12, name: '칠색조', sprite: '250', rarity: '전설', auraClass: 'aura-legendary', success: 60, destroy: 40, cost: 100000, price: 1800000 },
+            { level: 13, name: '루기아', sprite: '249', rarity: '전설', auraClass: 'aura-legendary', success: 55, destroy: 45, cost: 200000, price: 4000000 },
+            { level: 14, name: '뮤츠', sprite: '150', rarity: '신화', auraClass: 'aura-mythic', success: 50, destroy: 50, cost: 500000, price: 10000000 },
+            { level: 15, name: '가이오가', sprite: '382', rarity: '신화', auraClass: 'aura-mythic', success: 42, destroy: 58, cost: 1000000, price: 25000000 },
+
+            { level: 16, name: '그란돈', sprite: '383', rarity: '신화', auraClass: 'aura-mythic', success: 35, destroy: 65, cost: 2500000, price: 60000000 },
+            { level: 17, name: '레쿠쟈', sprite: '384', rarity: '신화', auraClass: 'aura-mythic', success: 28, destroy: 72, cost: 6000000, price: 150000000 },
+            { level: 18, name: '디아루가', sprite: '483', rarity: '초전설', auraClass: 'aura-god', success: 20, destroy: 80, cost: 15000000, price: 400000000 },
+            { level: 19, name: '펄기아', sprite: '484', rarity: '초전설', auraClass: 'aura-god', success: 12, destroy: 88, cost: 40000000, price: 1000000000 },
+            { level: 20, name: '아르세우스(진·창조신)', sprite: '493', rarity: '우주창조신', auraClass: 'aura-god', success: 5, destroy: 95, cost: 100000000, price: 3000000000 }
+        ];
+
+        // State variables for Protection Buffs
+        let useProtectScroll = false;
+        let useLuckAmulet = false;
+
+        // Core Game State Variables
+        // Helper to calculate effective rates (Binary: Success / Destroy)
+        function getEffectiveRates(poke) {
+            let effSuccess = poke.success;
+
+            if (useLuckAmulet) {
+                effSuccess += 10;
+            }
+
+            effSuccess = Math.min(100, effSuccess);
+
+            let effDestroy = 100 - effSuccess;
+
+            if (useProtectScroll) {
+                // Protect scroll completely blocks destruction
+                effDestroy = 0;
+            }
+
+            return {
+                success: effSuccess,
+                destroy: effDestroy
+            };
+        }
+
+        // Toggle protection scrolls with gold purchase
+        protectScrollBtn.addEventListener('click', () => {
+            sound.init();
+            const poke = POKEMON_DATA[currentStage - 1];
+            const scrollCost = Math.max(300, Math.floor(poke.cost * 1.5 + currentStage * 200));
+
+            if (!useProtectScroll) {
+                if (gold < scrollCost) {
+                    statusMessage.innerText = '골드가 부족하여 파괴 방지 주문서를 구매할 수 없습니다!';
+                    statusMessage.className = 'mt-4 text-sm md:text-base font-bold text-rose-400 h-6 text-center';
+                    return;
+                }
+                gold -= scrollCost;
+                useProtectScroll = true;
+                sound.playWork();
+                statusMessage.innerText = `🛡️ [파괴 방지 주문서] 구매 완료! (이번 1회 강화 시 파괴 0%)`;
+                statusMessage.className = 'mt-4 text-sm md:text-base font-bold text-emerald-300 h-6 text-center';
+            } else {
+                useProtectScroll = false;
+            }
+            updateUI();
+        });
+
+        luckAmuletBtn.addEventListener('click', () => {
+            sound.init();
+            const poke = POKEMON_DATA[currentStage - 1];
+            const amuletCost = Math.max(100, Math.floor(poke.cost * 0.5 + currentStage * 80));
+
+            if (!useLuckAmulet) {
+                if (gold < amuletCost) {
+                    statusMessage.innerText = '골드가 부족하여 행운 부적을 구매할 수 없습니다!';
+                    statusMessage.className = 'mt-4 text-sm md:text-base font-bold text-rose-400 h-6 text-center';
+                    return;
+                }
+                gold -= amuletCost;
+                useLuckAmulet = true;
+                sound.playWork();
+                statusMessage.innerText = `🍀 [행운 부적] 구매 완료! (이번 1회 강화 성공 확률 +10%)`;
+                statusMessage.className = 'mt-4 text-sm md:text-base font-bold text-amber-300 h-6 text-center';
+            } else {
+                useLuckAmulet = false;
+            }
+            updateUI();
+        });
+
+        // Update UI
+        function updateUI() {
+            const poke = POKEMON_DATA[currentStage - 1];
+            const rates = getEffectiveRates(poke);
+
+            goldText.innerText = gold.toLocaleString();
+            stageBadge.innerText = `LV. ${poke.level}`;
+            pokemonName.innerText = poke.name;
+            rarityBadge.innerText = `${poke.rarity} 등급`;
+
+            maxStageText.innerText = `LV. ${maxStage}`;
+
+            // Image and Aura
+            pokemonImg.src = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${poke.sprite}.png`;
+            pokemonDisplay.className = `relative z-10 w-44 h-44 md:w-56 md:h-56 flex items-center justify-center transition-all duration-300 ${poke.auraClass}`;
+
+            successRateText.innerText = `${rates.success}%`;
+            destroyRateText.innerText = `${rates.destroy}%`;
+
+            sellPriceText.innerText = `${poke.price.toLocaleString()}`;
+            upgradeCostText.innerText = `${poke.cost.toLocaleString()}`;
+
+            // Level-scaled Part-time Work Reward
+            const workGold = Math.max(100, Math.floor(poke.cost * 0.25 + currentStage * 50));
+            workEarnText.innerText = `${workGold.toLocaleString()}`;
+
+            // Dynamic Level-Scaled Protection Item Costs
+            const scrollCost = Math.max(300, Math.floor(poke.cost * 1.5 + currentStage * 200));
+            const amuletCost = Math.max(100, Math.floor(poke.cost * 0.5 + currentStage * 80));
+
+            protectCostText.innerText = `${scrollCost.toLocaleString()}G`;
+            luckCostText.innerText = `${amuletCost.toLocaleString()}G`;
+
+            // Protect Scroll UI status styling
+            protectScrollBtn.className = useProtectScroll
+                ? 'flex-1 md:flex-none bg-amber-500 text-amber-950 font-bold border-2 border-amber-300 text-xs px-3 py-1.5 rounded-lg transition flex items-center justify-center gap-1 shadow-md'
+                : 'flex-1 md:flex-none bg-emerald-900/80 hover:bg-emerald-800 border border-emerald-400/50 text-xs px-3 py-1.5 rounded-lg transition flex items-center justify-center gap-1';
+
+            luckAmuletBtn.className = useLuckAmulet
+                ? 'flex-1 md:flex-none bg-amber-500 text-amber-950 font-bold border-2 border-amber-300 text-xs px-3 py-1.5 rounded-lg transition flex items-center justify-center gap-1 shadow-md'
+                : 'flex-1 md:flex-none bg-emerald-900/80 hover:bg-emerald-800 border border-amber-400/50 text-xs px-3 py-1.5 rounded-lg transition flex items-center justify-center gap-1';
+
+            // Pokedex unlock tracking
+            if (!pokedexUnlocked.includes(currentStage)) {
+                pokedexUnlocked.push(currentStage);
+            }
+            if (currentStage > maxStage) {
+                maxStage = currentStage;
+            }
+
+            saveData();
+        }
+
+        // Work Event Handler
+        workBtn.addEventListener('click', () => {
+            sound.init();
+            sound.playWork();
+
+            const poke = POKEMON_DATA[currentStage - 1];
+            const earned = Math.max(100, Math.floor(poke.cost * 0.25 + currentStage * 50));
+            gold += earned;
+
+            statusMessage.innerText = `💼 열심 알바로 ${earned.toLocaleString()}G 를 벌었습니다!`;
+            statusMessage.className = 'mt-4 text-sm md:text-base font-bold text-emerald-300 h-6 text-center';
+
+            updateUI();
+        });
+
+        // Upgrade Handling (Binary: Success or Destroy)
+        upgradeBtn.addEventListener('click', () => {
+            sound.init();
+            const poke = POKEMON_DATA[currentStage - 1];
+
+            if (gold < poke.cost) {
+                statusMessage.innerText = '골드가 부족합니다! 포켓몬을 판매하여 골드를 모으세요.';
+                statusMessage.className = 'mt-4 text-sm md:text-base font-bold text-rose-400 h-6 text-center';
+                return;
+            }
+
+            if (currentStage >= POKEMON_DATA.length) {
+                statusMessage.innerText = '🎉 축하합니다! 20단계 진·창조신 아르세우스 최고 등급을 달성했습니다!';
+                statusMessage.className = 'mt-4 text-sm md:text-base font-bold text-amber-300 h-6 text-center';
+                return;
+            }
+
+            gold -= poke.cost;
+
+            const rect = pokemonDisplay.getBoundingClientRect();
+            const canvasRect = fxCanvas.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2 - canvasRect.left;
+            const centerY = rect.top + rect.height / 2 - canvasRect.top;
+
+            const rates = getEffectiveRates(poke);
+            const rand = Math.random() * 100;
+
+            if (rand < rates.success) {
+                // SUCCESS
+                currentStage++;
+                sound.playSuccess();
+                createSparkles(centerX, centerY, 35, true);
+
+                pokemonDisplay.classList.remove('animate-success', 'animate-fail');
+                void pokemonDisplay.offsetWidth;
+                pokemonDisplay.classList.add('animate-success');
+
+                statusMessage.innerText = `✨ 극악의 확률 뚫기 성공! ${POKEMON_DATA[currentStage - 1].name}(으)로 진화했습니다!`;
+                statusMessage.className = 'mt-4 text-sm md:text-base font-bold text-emerald-300 h-6 text-center';
+            } else if (useProtectScroll) {
+                // FAIL WITH PROTECT SCROLL -> STAYS AT CURRENT STAGE (No Destroy)
+                sound.playMaintain();
+                pokemonDisplay.classList.remove('animate-success', 'animate-fail');
+                void pokemonDisplay.offsetWidth;
+
+                statusMessage.innerText = `🛡️ 강화 실패! 파괴 방지 주문서 덕분에 포켓몬이 보존되었습니다.`;
+                statusMessage.className = 'mt-4 text-sm md:text-base font-bold text-amber-300 h-6 text-center';
+            } else {
+                // DESTROY (파괴 -> 1단계 피츄로 리셋)
+                sound.playDestroy();
+                createSparkles(centerX, centerY, 45, false);
+
+                currentStage = 1;
+
+                pokemonDisplay.classList.remove('animate-success', 'animate-fail');
+                void pokemonDisplay.offsetWidth;
+                pokemonDisplay.classList.add('animate-fail');
+
+                statusMessage.innerText = `💥 강화 실패로 포켓몬이 파괴되어 1단계 피츄로 초기화되었습니다!`;
+                statusMessage.className = 'mt-4 text-sm md:text-base font-bold text-rose-500 h-6 text-center';
+            }
+
+            // Consume single-use items after attempt
+            useProtectScroll = false;
+            useLuckAmulet = false;
+
+            updateUI();
+        });
+
+        sellBtn.addEventListener('click', () => {
+            sound.init();
+            const poke = POKEMON_DATA[currentStage - 1];
+
+            sound.playSell();
+            gold += poke.price;
+
+            statusMessage.innerText = `💰 ${poke.name}을(를) 판매하여 ${poke.price.toLocaleString()}G 를 획득했습니다!`;
+            statusMessage.className = 'mt-4 text-sm md:text-base font-bold text-amber-300 h-6 text-center';
+
+            currentStage = 1;
+            updateUI();
+        });
+
+        // Pokedex Render
+        function renderPokedex() {
+            pokedexGrid.innerHTML = '';
+            pokedexUnlocked.sort((a, b) => a - b);
+
+            POKEMON_DATA.forEach(poke => {
+                const isUnlocked = pokedexUnlocked.includes(poke.level);
+                const card = document.createElement('div');
+                card.className = `p-2 rounded-xl border flex flex-col items-center justify-center text-center ${
+                    isUnlocked 
+                        ? 'bg-emerald-900/60 border-amber-500/50 text-amber-100' 
+                        : 'bg-black/60 border-emerald-900/40 text-gray-500 opacity-60'
+                }`;
+
+                card.innerHTML = `
+                    <div class="text-[10px] text-amber-400 font-bold mb-1">LV. ${poke.level}</div>
+                    <div class="w-16 h-16 flex items-center justify-center mb-1">
+                        ${isUnlocked 
+                            ? `<img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${poke.sprite}.png" class="max-w-full max-h-full object-contain" />`
+                            : `<i class="fa-solid fa-question text-2xl text-gray-600"></i>`}
+                    </div>
+                    <div class="text-xs font-bold">${isUnlocked ? poke.name : '???'}</div>
+                    <div class="text-[9px] opacity-75">${isUnlocked ? poke.rarity : '미수집'}</div>
+                `;
+                pokedexGrid.appendChild(card);
+            });
+
+            pokedexCountText.innerText = `${pokedexUnlocked.length} / ${POKEMON_DATA.length}`;
+        }
+
+        pokedexBtn.addEventListener('click', () => {
+            renderPokedex();
+            pokedexModal.classList.remove('hidden');
+        });
+
+        closePokedexBtn.addEventListener('click', () => {
+            pokedexModal.classList.add('hidden');
+        });
+
+        soundToggle.addEventListener('click', () => {
+            sound.enabled = !sound.enabled;
+            soundIcon.className = sound.enabled ? 'fa-solid fa-volume-high text-sm' : 'fa-solid fa-volume-xmark text-sm text-red-400';
+        });
+
+        // Load data on start and initialize UI
+        loadData();
+        updateUI();
+    </script>
+</body>
+</html>
