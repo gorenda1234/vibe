@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>학교 칠판 벽돌깨기 Arcade</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Jua&family=Gamja+Flower&family=Press+Start+2P&display=swap');
+
+        body {
+            background-color: #1c2e26;
+            font-family: 'Jua', sans-serif;
+            user-select: none;
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        .font-arcade {
+            font-family: 'Press Start 2P', monospace;
+        }
+
+        .font-handwriting {
+            font-family: 'Gamja Flower', cursive;
+        }
+
+        .chalk-glow {
+            text-shadow: 0 0 6px rgba(255, 255, 255, 0.8), 0 0 15px rgba(255, 255, 255, 0.4);
+        }
+
+        .chalk-box {
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.5), inset 0 0 10px rgba(255, 255, 255, 0.15);
+            border: 3px solid #8b5a2b;
+            background: linear-gradient(135deg, #1d382b 0%, #152b20 100%);
+        }
+
+        canvas {
+            display: block;
+            border-radius: 12px;
+            box-shadow: 0 12px 35px rgba(0, 0, 0, 0.7), 0 0 0 8px #7a4b22, 0 0 0 12px #4a2c11;
+            background: #172d23;
+        }
+
+        .btn-chalk {
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 0 #4a2c11;
+        }
+
+        .btn-chalk:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 0 #4a2c11;
+        }
+
+        .btn-chalk:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 #4a2c11;
+        }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col justify-between items-center p-2 md:p-4 text-white">
+
+    <!-- Header Section -->
+    <header class="w-full max-w-4xl flex justify-between items-center mb-2 px-4 py-2 rounded-xl chalk-box backdrop-blur-md">
+        <div class="flex items-center space-x-3">
+            <span class="text-xs md:text-sm bg-emerald-800/90 text-amber-200 px-2 py-0.5 rounded border border-amber-400/40 font-bold">3학년 2반</span>
+            <h1 class="text-xl md:text-2xl font-black tracking-wider text-amber-100 chalk-glow flex items-center gap-2">
+                <span>🏫 학교 칠판 벽돌깨기</span>
+                <span class="text-xs md:text-sm bg-amber-950/60 text-amber-200 px-2 py-0.5 rounded-full border border-amber-500/30 font-sans font-normal">
+                    ☀️ 서울 <span id="headerTempText">11</span>°C
+                </span>
+            </h1>
+        </div>
+
+        <!-- In-Game Weather Temperature Test Controller -->
+        <div class="flex items-center space-x-2 bg-emerald-950/80 px-2.5 py-1 rounded-lg border border-amber-500/40 shadow-inner">
+            <label for="headerTempInput" class="text-amber-200 text-xs font-bold whitespace-nowrap hidden sm:inline">🌡️ 기온:</label>
+            <input type="number" id="headerTempInput" value="11" min="-20" max="45" class="w-12 px-1.5 py-0.5 text-center bg-emerald-900 border border-amber-400 text-amber-100 rounded focus:outline-none focus:ring-1 focus:ring-amber-300 font-bold text-xs" />
+            <span class="text-amber-200 text-xs font-bold">°C</span>
+            <button id="headerApplyTempBtn" class="px-2 py-0.5 bg-amber-600 hover:bg-amber-500 text-amber-950 font-black rounded text-xs transition">
+                적용
+            </button>
+        </div>
+
+        <!-- HUD Info -->
+        <div class="flex items-center space-x-4 md:space-x-6 text-xs md:text-sm">
+            <div class="text-center">
+                <span class="text-emerald-300 text-[10px] block">STAGE</span>
+                <span id="levelText" class="text-amber-300 font-bold text-base md:text-lg">1</span>
+            </div>
+            <div class="text-center">
+                <span class="text-emerald-300 text-[10px] block">SCORE</span>
+                <span id="scoreText" class="text-emerald-100 font-mono text-base md:text-lg">000000</span>
+            </div>
+            <div class="text-center hidden sm:block">
+                <span class="text-emerald-300 text-[10px] block">HIGH SCORE</span>
+                <span id="highScoreText" class="text-amber-200 font-mono text-base md:text-lg">000000</span>
+            </div>
+            <div class="flex items-center space-x-1 text-red-400 text-sm md:text-base" id="livesContainer">
+                <i class="fa-solid fa-heart"></i>
+                <i class="fa-solid fa-heart"></i>
+                <i class="fa-solid fa-heart"></i>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="flex items-center space-x-2">
+            <button id="soundToggle" class="p-1.5 rounded-lg bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 transition" title="사운드 토글">
+                <i id="soundIcon" class="fa-solid fa-volume-high text-base"></i>
+            </button>
+            <button id="pauseBtn" class="p-1.5 rounded-lg bg-amber-900 hover:bg-amber-800 text-amber-200 transition">
+                <i id="pauseIcon" class="fa-solid fa-pause text-base"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Game Canvas Area -->
+    <div class="relative flex-1 w-full max-w-4xl flex flex-col items-center justify-center overflow-hidden">
+        <canvas id="gameCanvas" class="w-full h-full object-contain"></canvas>
+
+        <!-- Overlay Menu -->
+        <div id="overlay" class="absolute inset-0 bg-black/80 backdrop-blur-md flex flex-col justify-center items-center rounded-xl transition-all">
+            <div class="text-center p-6 bg-emerald-950/90 border-4 border-amber-700 rounded-2xl max-w-md w-11/12 shadow-2xl">
+                <div class="text-3xl font-bold text-amber-300 mb-2 font-handwriting" id="overlayTitle">교실 수업 시작!</div>
+                
+                <!-- Weather Speed Notification Card -->
+                <div id="weatherNotice" class="my-3 p-3 bg-emerald-900/80 border border-amber-500/40 rounded-xl text-left text-xs space-y-1.5 shadow-inner">
+                    <div class="font-bold text-amber-200 text-sm flex justify-between items-center border-b border-emerald-700/60 pb-1">
+                        <span>🌡️ 서울 실시간 기온 기준 속도</span>
+                        <span id="weatherTempBadge" class="bg-amber-500 text-amber-950 px-2 py-0.5 rounded-full font-extrabold text-xs">11°C</span>
+                    </div>
+
+                    <p class="text-emerald-100 text-[11px] leading-relaxed pt-1" id="weatherMsgText">
+                        상단 헤더의 기온 변경 칸으로 게임 도중 언제든 속도를 바꿀 수 있습니다!
+                    </p>
+                    <div class="mt-2 text-[10px] text-emerald-300 bg-emerald-950/70 p-2 rounded border border-emerald-800">
+                        <table class="w-full text-center border-collapse">
+                            <thead>
+                                <tr class="border-b border-emerald-800 text-amber-300">
+                                    <th class="py-0.5">기온 조건</th>
+                                    <th class="py-0.5">공 속도</th>
+                                    <th class="py-0.5">상태</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr id="rowHot">
+                                    <td class="py-0.5">25°C 이상</td>
+                                    <td class="py-0.5 text-red-300 font-bold">빠름 (FAST)</td>
+                                    <td class="py-0.5">🔥 열대야 핫 스피드</td>
+                                </tr>
+                                <tr id="rowMild" class="bg-emerald-800/40">
+                                    <td class="py-0.5">10°C ~ 24°C</td>
+                                    <td class="py-0.5 text-amber-200 font-bold">보통 (NORMAL)</td>
+                                    <td class="py-0.5">☀️ 쾌적한 쾌속 모드</td>
+                                </tr>
+                                <tr id="rowCold">
+                                    <td class="py-0.5">10°C 미만</td>
+                                    <td class="py-0.5 text-cyan-300 font-bold">느림 (SLOW)</td>
+                                    <td class="py-0.5">❄️ 쌀쌀한 천천히 모드</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <p class="text-emerald-100 text-xs mb-4 leading-relaxed" id="overlaySubtitle">
+                    칠판 위의 과목 벽돌들을 모두 깨뜨려보세요!
+                </p>
+                
+                <div class="flex flex-col gap-3">
+                    <button id="startBtn" class="btn-chalk w-full py-3 bg-amber-600 hover:bg-amber-500 text-amber-950 font-black text-lg rounded-xl transition">
+                        수업 시작하기 (START)
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Speed Controller Section -->
+    <footer class="w-full max-w-4xl mt-2 px-4 py-2 rounded-xl chalk-box flex justify-center items-center">
+        <div class="flex items-center space-x-3 bg-amber-950/90 px-4 py-1.5 rounded-lg border border-amber-500/50 shadow-md">
+            <i class="fa-solid fa-gauge-high text-amber-300 text-sm"></i>
+            <label for="speedSlider" class="text-amber-200 text-xs md:text-sm font-bold whitespace-nowrap">실시간 공 속도 조절:</label>
+            <input type="range" id="speedSlider" min="2" max="18" step="0.5" value="6.5" class="w-32 md:w-48 accent-amber-500 cursor-pointer h-2 rounded-lg bg-emerald-900">
+            <span id="speedSliderVal" class="text-amber-300 font-mono text-sm font-black w-8 text-right">6.5</span>
+        </div>
+    </footer>
+
+    <script>
+        // Sound Engine Logic
+        class SoundEngine {
+            constructor() {
+                this.ctx = null;
+                this.enabled = true;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioContext();
+                }
+            }
+
+            playTone(freq, type = 'sine', duration = 0.1, vol = 0.1) {
+                if (!this.enabled || !this.ctx) return;
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = type;
+                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                    gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + duration);
+                } catch(e) {}
+            }
+
+            playHitBrick(pitch = 1) {
+                this.playTone(320 * pitch, 'triangle', 0.08, 0.18);
+            }
+
+            playHitPaddle() {
+                this.playTone(160, 'sine', 0.1, 0.25);
+            }
+
+            playPowerup() {
+                if (!this.enabled || !this.ctx) return;
+                [300, 450, 600].forEach((f, i) => {
+                    setTimeout(() => this.playTone(f, 'sine', 0.1, 0.2), i * 60);
+                });
+            }
+
+            playLoseLife() {
+                if (!this.enabled || !this.ctx) return;
+                this.playTone(130, 'sawtooth', 0.3, 0.25);
+            }
+
+            playGameOver() {
+                if (!this.enabled || !this.ctx) return;
+                [220, 180, 140, 90].forEach((freq, idx) => {
+                    setTimeout(() => this.playTone(freq, 'sawtooth', 0.25, 0.3), idx * 150);
+                });
+            }
+        }
+
+        const sound = new SoundEngine();
+
+        // Canvas Setup
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const CANVAS_WIDTH = 800;
+        const CANVAS_HEIGHT = 600;
+        canvas.width = CANVAS_WIDTH;
+        canvas.height = CANVAS_HEIGHT;
+
+        // UI Elements
+        const scoreText = document.getElementById('scoreText');
+        const highScoreText = document.getElementById('highScoreText');
+        const levelText = document.getElementById('levelText');
+        const livesContainer = document.getElementById('livesContainer');
+
+        const overlay = document.getElementById('overlay');
+        const overlayTitle = document.getElementById('overlayTitle');
+        const overlaySubtitle = document.getElementById('overlaySubtitle');
+        const startBtn = document.getElementById('startBtn');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const pauseIcon = document.getElementById('pauseIcon');
+        const soundToggle = document.getElementById('soundToggle');
+        const soundIcon = document.getElementById('soundIcon');
+
+        const STATES = { START: 0, PLAYING: 1, PAUSED: 2, GAMEOVER: 3, VICTORY: 4 };
+        let gameState = STATES.START;
+
+        // Game Speed Settings
+        const SPEED_MODES = [
+            { name: 'SLOW', ballSpeed: 4.5, paddleSpeed: 9, label: '천천히' },
+            { name: 'NORMAL', ballSpeed: 6.5, paddleSpeed: 12, label: '보통' },
+            { name: 'FAST', ballSpeed: 9.0, paddleSpeed: 15, label: '빠름 🔥' }
+        ];
+        let currentSpeedIndex = 1;
+        let currentSeoulTemp = 11;
+
+        // Game Entities
+        let score = 0;
+        let highScore = localStorage.getItem('school_breakout_highscore') || 0;
+        let lives = 3;
+        let level = 1;
+        let animationFrameId = null;
+
+        const paddle = {
+            width: 120,
+            baseWidth: 120,
+            height: 16,
+            x: CANVAS_WIDTH / 2 - 60,
+            y: CANVAS_HEIGHT - 30,
+            speed: 12
+        };
+
+        let balls = [];
+        let bricks = [];
+        let powerups = [];
+        let particles = [];
+
+        const keys = { Left: false, Right: false };
+
+        // Keyboard Controls
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.Left = true;
+            if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.Right = true;
+            if (e.key === ' ' && gameState === STATES.PLAYING) {
+                balls.forEach(b => { if (b.stuckToPaddle) b.stuckToPaddle = false; });
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.Left = false;
+            if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.Right = false;
+        });
+
+        // Touch Controls
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const touchX = e.touches[0].clientX - rect.left;
+            const scaleX = CANVAS_WIDTH / rect.width;
+            paddle.x = touchX * scaleX - paddle.width / 2;
+            paddle.x = Math.max(0, Math.min(CANVAS_WIDTH - paddle.width, paddle.x));
+        }, { passive: false });
+
+        canvas.addEventListener('touchstart', (e) => {
+            if (gameState === STATES.PLAYING) {
+                balls.forEach(b => { if (b.stuckToPaddle) b.stuckToPaddle = false; });
+            }
+        });
+
+        // Mouse Controls
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const scaleX = CANVAS_WIDTH / rect.width;
+            paddle.x = mouseX * scaleX - paddle.width / 2;
+            paddle.x = Math.max(0, Math.min(CANVAS_WIDTH - paddle.width, paddle.x));
+        });
+
+        canvas.addEventListener('click', () => {
+            if (gameState === STATES.PLAYING) {
+                balls.forEach(b => { if (b.stuckToPaddle) b.stuckToPaddle = false; });
+            }
+        });
+
+        // Brick Generation
+        function createBricks() {
+            bricks = [];
+            // 가로 열 16개, 세로 행 레벨에 따라 최대 12줄로 블록 개수 대폭 증가
+            const cols = 16;
+            const rows = Math.min(8 + level, 12);
+            const padding = 4;
+            const marginTop = 20;
+            const marginLeft = 12;
+
+            const totalWidth = CANVAS_WIDTH - (marginLeft * 2);
+            const brickWidth = (totalWidth - (cols - 1) * padding) / cols;
+            const brickHeight = 16;
+
+            const colorPalettes = [
+                { start: '#ff6b6b', end: '#ee5253' }, // Red
+                { start: '#ff9ff3', end: '#f368e0' }, // Pink
+                { start: '#feca57', end: '#ff9f43' }, // Yellow/Orange
+                { start: '#48dbfb', end: '#0abde3' }, // Cyan
+                { start: '#1dd1a1', end: '#10ac84' }, // Green
+                { start: '#54a0ff', end: '#2e86de' }, // Blue
+                { start: '#5f27cd', end: '#341f97' }  // Purple
+            ];
+
+            for (let r = 0; r < rows; r++) {
+                // 라운드(level)가 올라갈수록 상단 행부터 하단 행까지 블록 체력(HP)이 대폭 증가합니다.
+                // 위쪽 행일수록 체력이 높고, 레벨이 높아질수록 전체적인 기본 체력이 상승합니다.
+                const depthFactor = Math.floor((rows - r) / 2); // 위쪽 행일수록 높은 값
+                let hp = 1 + Math.floor((level - 1) * 0.8) + Math.floor(depthFactor * (level * 0.4));
+                hp = Math.min(Math.max(1, hp), 10); // 최소 1, 최대 10 제한
+
+                const palette = colorPalettes[r % colorPalettes.length];
+
+                for (let c = 0; c < cols; c++) {
+                    bricks.push({
+                        x: marginLeft + c * (brickWidth + padding),
+                        y: marginTop + r * (brickHeight + padding),
+                        w: brickWidth,
+                        h: brickHeight,
+                        maxHp: hp,
+                        hp: hp,
+                        colorStart: palette.start,
+                        colorEnd: palette.end,
+                        points: (rows - r) * 10 * hp
+                    });
+                }
+            }
+        }
+
+        function drawChalkboardBackground() {
+            ctx.fillStyle = '#172d23';
+            ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+            // Chalkboard grid lines
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+            ctx.lineWidth = 1;
+            for (let x = 0; x < CANVAS_WIDTH; x += 40) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, CANVAS_HEIGHT);
+                ctx.stroke();
+            }
+            for (let y = 0; y < CANVAS_HEIGHT; y += 40) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(CANVAS_WIDTH, y);
+                ctx.stroke();
+            }
+        }
+
+        function drawBricks() {
+            bricks.forEach(b => {
+                ctx.save();
+                
+                // Brick Shadow & Gradient Background
+                const grad = ctx.createLinearGradient(b.x, b.y, b.x, b.y + b.h);
+                grad.addColorStop(0, b.colorStart);
+                grad.addColorStop(1, b.colorEnd);
+
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.roundRect(b.x, b.y, b.w, b.h, 4);
+                ctx.fill();
+
+                // Highlight top border
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+
+                // Multi-hit indicator for top bricks
+                if (b.maxHp > 1) {
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+                    ctx.font = 'bold 10px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(b.hp, b.x + b.w / 2, b.y + b.h / 2);
+                }
+
+                ctx.restore();
+            });
+        }
+
+        function spawnPowerup(x, y) {
+            // 벽돌을 깼을 때 아이템이 생성될 확률 자체는 약 35%
+            if (Math.random() > 0.35) return;
+
+            // 아이템 종류별 등장 비율 조정
+            // 하트(목숨 추가) 아이템의 등장 확률을 대폭 줄임
+            const rand = Math.random();
+            let type = 'MULTIBALL';
+
+            if (rand > 0.50) {
+                const subRand = Math.random();
+                if (subRand < 0.45) type = 'WIDE';       // 지우개 확장 (45%)
+                else if (subRand < 0.90) type = 'FIREBALL'; // 파이어볼 (45%)
+                else type = 'LIFE';                       // 목숨 추가 하트 (10%로 축소)
+            }
+
+            powerups.push({
+                x: x,
+                y: y,
+                dy: 2.2,
+                type: type
+            });
+        }
+
+        function drawPowerups() {
+            powerups.forEach(p => {
+                ctx.save();
+                ctx.translate(p.x, p.y);
+
+                if (p.type === 'MULTIBALL') {
+                    ctx.fillStyle = '#f1c40f';
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 10, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = '#111';
+                    ctx.font = 'bold 9px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('⚽2', 0, 0);
+                } else if (p.type === 'LIFE') {
+                    ctx.fillStyle = '#e74c3c';
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 10, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = '#fff';
+                    ctx.font = 'bold 10px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('♥', 0, 0);
+                } else if (p.type === 'WIDE') {
+                    ctx.fillStyle = '#3498db';
+                    ctx.beginPath();
+                    ctx.roundRect(-12, -6, 24, 12, 3);
+                    ctx.fill();
+                    ctx.fillStyle = '#fff';
+                    ctx.font = 'bold 9px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('↔', 0, 0);
+                } else if (p.type === 'FIREBALL') {
+                    ctx.fillStyle = '#e67e22';
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 10, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = '#fff';
+                    ctx.font = 'bold 9px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('🔥', 0, 0);
+                }
+
+                ctx.restore();
+            });
+        }
+
+        function createExplosion(x, y, color, count = 12) {
+            for (let i = 0; i < count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 3 + 1;
+                particles.push({
+                    x: x,
+                    y: y,
+                    dx: Math.cos(angle) * speed,
+                    dy: Math.sin(angle) * speed,
+                    radius: Math.random() * 3 + 1,
+                    color: color,
+                    alpha: 1.0,
+                    decay: Math.random() * 0.03 + 0.02
+                });
+            }
+        }
+
+        function drawPaddle() {
+            ctx.save();
+            // Eraser-style Paddle
+            const grad = ctx.createLinearGradient(paddle.x, paddle.y, paddle.x, paddle.y + paddle.height);
+            grad.addColorStop(0, '#f39c12');
+            grad.addColorStop(1, '#d35400');
+
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.roundRect(paddle.x, paddle.y, paddle.width, paddle.height, 6);
+            ctx.fill();
+
+            // Eraser felt top layer
+            ctx.fillStyle = '#ecf0f1';
+            ctx.fillRect(paddle.x + 4, paddle.y, paddle.width - 8, 4);
+
+            ctx.restore();
+        }
+
+        function fetchSeoulWeather() {
+            fetch('https://api.open-meteo.com/v1/forecast?latitude=37.5665&longitude=126.9780&current_weather=true')
+                .then(res => res.json())
+                .then(data => {
+                    if (data && data.current_weather && data.current_weather.temperature !== undefined) {
+                        const temp = Math.round(data.current_weather.temperature);
+                        applyWeatherSpeedCondition(temp);
+                    }
+                })
+                .catch(() => {
+                    applyWeatherSpeedCondition(11);
+                });
+        }
+
+        function applyWeatherSpeedCondition(temp) {
+            currentSeoulTemp = temp;
+            const weatherMsgText = document.getElementById('weatherMsgText');
+            const weatherTempBadge = document.getElementById('weatherTempBadge');
+            const headerTempText = document.getElementById('headerTempText');
+            const headerTempInput = document.getElementById('headerTempInput');
+            const rowHot = document.getElementById('rowHot');
+            const rowMild = document.getElementById('rowMild');
+            const rowCold = document.getElementById('rowCold');
+
+            if (weatherTempBadge) weatherTempBadge.innerText = `${temp}°C`;
+            if (headerTempText) headerTempText.innerText = temp;
+            if (headerTempInput && document.activeElement !== headerTempInput) headerTempInput.value = temp;
+
+            [rowHot, rowMild, rowCold].forEach(row => { if (row) row.className = ''; });
+
+            let targetSpeed = 6.5;
+            if (temp >= 25) {
+                targetSpeed = 9.5; // FAST
+                if (weatherMsgText) weatherMsgText.innerText = `현재 기온(${temp}°C)이 25°C 이상입니다! 공이 매우 빠르게 움직입니다! 🔥`;
+                if (rowHot) rowHot.className = 'bg-red-900/60 font-bold text-red-200';
+            } else if (temp < 10) {
+                targetSpeed = 4.0; // SLOW
+                if (weatherMsgText) weatherMsgText.innerText = `현재 기온(${temp}°C)이 10°C 미만입니다! 공이 천천히 움직입니다. ❄️`;
+                if (rowCold) rowCold.className = 'bg-cyan-900/60 font-bold text-cyan-200';
+            } else {
+                targetSpeed = 6.5; // NORMAL
+                if (weatherMsgText) weatherMsgText.innerText = `현재 기온(${temp}°C)은 쾌적합니다! 기본 속도로 동작합니다. ☀️`;
+                if (rowMild) rowMild.className = 'bg-amber-800/60 font-bold text-amber-200';
+            }
+
+            // Update Speed Slider UI
+            const speedSlider = document.getElementById('speedSlider');
+            const speedSliderVal = document.getElementById('speedSliderVal');
+            if (speedSlider) speedSlider.value = targetSpeed;
+            if (speedSliderVal) speedSliderVal.innerText = targetSpeed.toFixed(1);
+
+            updateBallSpeed(targetSpeed);
+        }
+
+        function updateBallSpeed(newSpeed) {
+            paddle.speed = Math.min(18, Math.max(8, newSpeed * 1.5));
+            balls.forEach(b => {
+                const currentSpeed = Math.hypot(b.dx, b.dy);
+                if (currentSpeed > 0) {
+                    const ratio = newSpeed / currentSpeed;
+                    b.dx *= ratio;
+                    b.dy *= ratio;
+                }
+            });
+        }
+
+        function applyPowerup(type) {
+            sound.playPowerup();
+            if (type === 'MULTIBALL') {
+                const newBalls = [];
+                balls.forEach(b => {
+                    const speed = SPEED_MODES[currentSpeedIndex].ballSpeed;
+                    newBalls.push({
+                        x: b.x,
+                        y: b.y,
+                        radius: b.radius,
+                        dx: -b.dx || speed * 0.7,
+                        dy: -Math.abs(b.dy) || -speed,
+                        stuckToPaddle: false,
+                        isFireball: b.isFireball
+                    });
+                });
+                balls = balls.concat(newBalls);
+            } else if (type === 'WIDE') {
+                paddle.width = 170;
+                setTimeout(() => { paddle.width = paddle.baseWidth; }, 8000);
+            } else if (type === 'LIFE') {
+                lives = Math.min(lives + 1, 5);
+                updateUI();
+            } else if (type === 'FIREBALL') {
+                balls.forEach(b => b.isFireball = true);
+                setTimeout(() => {
+                    balls.forEach(b => b.isFireball = false);
+                }, 6000);
+            }
+        }
+
+        function update() {
+            if (gameState !== STATES.PLAYING) return;
+
+            if (keys.Left) paddle.x -= paddle.speed;
+            if (keys.Right) paddle.x += paddle.speed;
+            paddle.x = Math.max(0, Math.min(CANVAS_WIDTH - paddle.width, paddle.x));
+
+            for (let i = powerups.length - 1; i >= 0; i--) {
+                const p = powerups[i];
+                p.y += p.dy;
+
+                if (p.y + 12 >= paddle.y && p.y - 12 <= paddle.y + paddle.height &&
+                    p.x >= paddle.x && p.x <= paddle.x + paddle.width) {
+                    applyPowerup(p.type);
+                    powerups.splice(i, 1);
+                    continue;
+                }
+
+                if (p.y > CANVAS_HEIGHT) {
+                    powerups.splice(i, 1);
+                }
+            }
+
+            balls.forEach((ball) => {
+                if (ball.stuckToPaddle) {
+                    ball.x = paddle.x + paddle.width / 2;
+                    ball.y = paddle.y - ball.radius - 2;
+                    return;
+                }
+
+                ball.x += ball.dx;
+                ball.y += ball.dy;
+
+                if (ball.x - ball.radius < 0) {
+                    ball.x = ball.radius;
+                    ball.dx *= -1;
+                    sound.playHitPaddle();
+                } else if (ball.x + ball.radius > CANVAS_WIDTH) {
+                    ball.x = CANVAS_WIDTH - ball.radius;
+                    ball.dx *= -1;
+                    sound.playHitPaddle();
+                }
+
+                if (ball.y - ball.radius < 0) {
+                    ball.y = ball.radius;
+                    ball.dy *= -1;
+                    sound.playHitPaddle();
+                }
+
+                if (ball.dy > 0 &&
+                    ball.y + ball.radius >= paddle.y &&
+                    ball.y - ball.radius <= paddle.y + paddle.height &&
+                    ball.x >= paddle.x && ball.x <= paddle.x + paddle.width) {
+                    
+                    sound.playHitPaddle();
+                    ball.y = paddle.y - ball.radius;
+
+                    const hitPos = (ball.x - (paddle.x + paddle.width / 2)) / (paddle.width / 2);
+                    const maxAngle = Math.PI / 3;
+                    const bounceAngle = hitPos * maxAngle;
+                    const speed = Math.hypot(ball.dx, ball.dy);
+
+                    ball.dx = speed * Math.sin(bounceAngle);
+                    ball.dy = -speed * Math.cos(bounceAngle);
+                }
+
+                for (let i = bricks.length - 1; i >= 0; i--) {
+                    const b = bricks[i];
+                    if (ball.x + ball.radius > b.x && ball.x - ball.radius < b.x + b.w &&
+                        ball.y + ball.radius > b.y && ball.y - ball.radius < b.y + b.h) {
+
+                        sound.playHitBrick(1.1);
+
+                        if (!ball.isFireball) {
+                            const overlapLeft = (ball.x + ball.radius) - b.x;
+                            const overlapRight = (b.x + b.w) - (ball.x - ball.radius);
+                            const overlapTop = (ball.y + ball.radius) - b.y;
+                            const overlapBottom = (b.y + b.h) - (ball.y - ball.radius);
+
+                            const minOverlap = Math.min(overlapLeft, overlapRight, overlapTop, overlapBottom);
+                            if (minOverlap === overlapLeft || minOverlap === overlapRight) {
+                                ball.dx *= -1;
+                            } else {
+                                ball.dy *= -1;
+                            }
+                        }
+
+                        b.hp--;
+                        createExplosion(ball.x, ball.y, b.colorStart, 8);
+
+                        if (b.hp <= 0) {
+                            score += b.points;
+                            spawnPowerup(b.x + b.w / 2, b.y + b.h / 2);
+                            createExplosion(b.x + b.w / 2, b.y + b.h / 2, b.colorStart, 16);
+                            bricks.splice(i, 1);
+                        }
+
+                        updateUI();
+                        if (!ball.isFireball) break;
+                    }
+                }
+            });
+
+            balls = balls.filter(b => b.y - b.radius < CANVAS_HEIGHT);
+
+            if (balls.length === 0) {
+                lives--;
+                sound.playLoseLife();
+                updateUI();
+
+                if (lives <= 0) {
+                    gameOver();
+                    return;
+                } else {
+                    balls.push(createBall(true));
+                }
+            }
+
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const pt = particles[i];
+                pt.x += pt.dx;
+                pt.y += pt.dy;
+                pt.alpha -= pt.decay;
+                if (pt.alpha <= 0) particles.splice(i, 1);
+            }
+
+            if (bricks.length === 0) {
+                level++;
+                startLevel();
+            }
+        }
+
+        function draw() {
+            drawChalkboardBackground();
+
+            drawBricks();
+            drawPowerups();
+            drawPaddle();
+
+            // Draw Square Chalk Ball (더 작아진 사각형 분필 공)
+            balls.forEach(ball => {
+                ctx.save();
+                ctx.translate(ball.x, ball.y);
+
+                const size = ball.radius * 1.5; // 공 크기 축소 (반지름 기준 4px -> 6px 직사각형)
+
+                ctx.shadowBlur = ball.isFireball ? 12 : 6;
+                ctx.shadowColor = ball.isFireball ? '#ff4d6d' : 'rgba(255, 255, 255, 0.9)';
+
+                // Square Chalk Body
+                ctx.fillStyle = ball.isFireball ? '#ff3838' : '#ffffff';
+                ctx.fillRect(-size, -size, size * 2, size * 2);
+
+                // Chalk Inner Texture / Edge Highlight
+                ctx.strokeStyle = ball.isFireball ? '#ffb8b8' : 'rgba(200, 200, 200, 0.8)';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(-size, -size, size * 2, size * 2);
+
+                ctx.restore();
+            });
+
+            particles.forEach(pt => {
+                ctx.save();
+                ctx.globalAlpha = pt.alpha;
+                ctx.fillStyle = pt.color;
+                ctx.beginPath();
+                ctx.arc(pt.x, pt.y, pt.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            });
+        }
+
+        function gameLoop() {
+            update();
+            draw();
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        function updateUI() {
+            scoreText.innerText = String(score).padStart(6, '0');
+            highScoreText.innerText = String(highScore).padStart(6, '0');
+            levelText.innerText = level;
+
+            livesContainer.innerHTML = '';
+            for (let i = 0; i < lives; i++) {
+                livesContainer.innerHTML += '<i class="fa-solid fa-heart animate-pulse"></i>';
+            }
+        }
+
+        function setOverlay(title, subtitle, buttonText) {
+            overlayTitle.innerText = title;
+            overlaySubtitle.innerText = subtitle;
+            startBtn.innerText = buttonText;
+            overlay.classList.remove('hidden');
+        }
+
+        function hideOverlay() {
+            overlay.classList.add('hidden');
+        }
+
+        function createBall(stuck = true) {
+            const speedSlider = document.getElementById('speedSlider');
+            const ballSpeed = speedSlider ? parseFloat(speedSlider.value) : 6.5;
+            return {
+                x: paddle.x + paddle.width / 2,
+                y: paddle.y - 6,
+                radius: 4, // 공의 크기(반지름)를 7px -> 4px로 작게 축소
+                dx: (Math.random() - 0.5) * ballSpeed,
+                dy: -ballSpeed,
+                stuckToPaddle: stuck,
+                isFireball: false
+            };
+        }
+
+        function initGame() {
+            score = 0;
+            lives = 3;
+            level = 1;
+            particles = [];
+            powerups = [];
+            
+            startLevel();
+            updateUI();
+        }
+
+        function startLevel() {
+            createBricks();
+            balls = [createBall(true)];
+            powerups = [];
+            paddle.x = CANVAS_WIDTH / 2 - paddle.width / 2;
+        }
+
+        function startGame() {
+            sound.init();
+            if (gameState === STATES.GAMEOVER || gameState === STATES.START) {
+                initGame();
+            }
+            gameState = STATES.PLAYING;
+            hideOverlay();
+
+            if (!animationFrameId) {
+                gameLoop();
+            }
+        }
+
+        function gameOver() {
+            gameState = STATES.GAMEOVER;
+            sound.playGameOver();
+
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('school_breakout_highscore', highScore);
+            }
+
+            setOverlay('GAME OVER', `최종 점수: ${score}점 (최고 레벨: ${level})`, 'TRY AGAIN');
+        }
+
+        function togglePause() {
+            if (gameState === STATES.PLAYING) {
+                gameState = STATES.PAUSED;
+                pauseIcon.className = 'fa-solid fa-play text-lg';
+                setOverlay('PAUSED', '일시 정지되었습니다. 언제든 다시 시작하세요!', 'RESUME');
+            } else if (gameState === STATES.PAUSED) {
+                gameState = STATES.PLAYING;
+                pauseIcon.className = 'fa-solid fa-pause text-lg';
+                hideOverlay();
+            }
+        }
+
+        soundToggle.addEventListener('click', () => {
+            sound.enabled = !sound.enabled;
+            soundIcon.className = sound.enabled ? 'fa-solid fa-volume-high text-lg' : 'fa-solid fa-volume-xmark text-lg text-red-400';
+        });
+
+        pauseBtn.addEventListener('click', togglePause);
+        startBtn.addEventListener('click', startGame);
+
+        function handleResize() {
+            const container = canvas.parentElement;
+            const w = container.clientWidth;
+            const h = container.clientHeight;
+            const aspect = CANVAS_WIDTH / CANVAS_HEIGHT;
+        }
+
+        window.onload = () => {
+            handleResize();
+            updateUI();
+            draw();
+            fetchSeoulWeather();
+
+            // Speed Slider Event Listener
+            const speedSlider = document.getElementById('speedSlider');
+            const speedSliderVal = document.getElementById('speedSliderVal');
+            if (speedSlider && speedSliderVal) {
+                speedSlider.addEventListener('input', (e) => {
+                    const val = parseFloat(e.target.value);
+                    speedSliderVal.innerText = val.toFixed(1);
+                    updateBallSpeed(val);
+                });
+            }
+
+            const headerTempInput = document.getElementById('headerTempInput');
+            const headerApplyTempBtn = document.getElementById('headerApplyTempBtn');
+            if (headerApplyTempBtn && headerTempInput) {
+                headerApplyTempBtn.addEventListener('click', () => {
+                    const tempVal = parseInt(headerTempInput.value, 10);
+                    if (!isNaN(tempVal)) {
+                        applyWeatherSpeedCondition(tempVal);
+                    }
+                });
+
+                headerTempInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        const tempVal = parseInt(headerTempInput.value, 10);
+                        if (!isNaN(tempVal)) {
+                            applyWeatherSpeedCondition(tempVal);
+                        }
+                    }
+                });
+            }
+        };
+    </script>
+</body>
+</html>
